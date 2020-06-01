@@ -5,7 +5,7 @@ import requests
 from bson import json_util
 from database_access import databaseaccess
 from database_access import manufacturer
-from flask import request, abort, jsonify
+from flask import request, Response, abort, jsonify
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -16,19 +16,32 @@ def home():
     return "<h1>Hello world!</h1>"
 
 
-@app.route('/api/manufacturers/', methods=['GET'])
-def get_all_manufacturers():
-    all_manufacturers = databaseaccess.DatabaseAccess.manufacturers_coll.find()
-    manufacturer_list = []
-    for doc in all_manufacturers:
-        row = manufacturer.Manufacturer(
-            doc['_id'], doc['name'], doc['abbreviation'])
-        manufacturer_list.append(row.toObject())
-    return jsonify(manufacturer_list)
+@app.route('/api/manufacturers/', methods=['GET', 'POST'])
+def all_manufacturers():
+
+    if request.method == 'GET':
+        all_manufacturers = databaseaccess.DatabaseAccess.manufacturers_coll.find()
+        manufacturer_list = []
+        for doc in all_manufacturers:
+            row = manufacturer.Manufacturer(
+                doc['_id'], doc['name'], doc['abbreviation'])
+            manufacturer_list.append(row.toObject())
+        return jsonify(manufacturer_list)
+    elif request.method == 'POST':
+        data_to_insert = request.form
+        row_to_insert = manufacturer.Manufacturer(
+            data_to_insert['_id'], data_to_insert['name'], data_to_insert['abbreviation']
+        )
+        inserted_row = databaseaccess.DatabaseAccess.manufacturers_coll.insert_one(row_to_insert.toObject())
+        return_data = { '_id': inserted_row.inserted_id }
+        resp = Response(json.dumps(return_data), status=200, mimetype='application/json')
+        return resp
+    else:
+        return abort(405)
 
 
 @app.route('/api/manufacturers/<int:id>/', methods=['GET'])
-def get_manufacturer_by_id(id):
+def manufacturer_by_id(id):
     mf = databaseaccess.DatabaseAccess.manufacturers_coll.find_one({"_id": id})
     if mf is None:
         return abort(404, description="The manufacturer with id " + str(id) + " does not exist")
